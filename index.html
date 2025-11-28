@@ -2,20 +2,20 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GIF Studio V4</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MP4 to GIF</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <style>
         :root {
             --app-width: 500px;
-            --app-height: 850px; /* 電腦版最大高度 */
-            --bg-body: #e0e5ec;
+            --app-height: 900px;
+            --bg-body: #eceff4;
             --bg-app: #ffffff;
-            --accent: #007aff;
-            --danger: #ff3b30;
-            --text-main: #1c1c1e;
-            --toolbar-h: 64px;
-            --header-h: 56px;
+            --accent: #2d3436; 
+            --accent-blue: #0984e3;
+            --border: #dfe6e9;
+            --toolbar-h: 70px;
+            --header-h: 60px;
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; user-select: none; }
@@ -23,767 +23,912 @@
         body { 
             margin: 0; padding: 0; 
             background: var(--bg-body); 
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, Arial, sans-serif;
-            height: 100vh; width: 100vw; overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            height: 100dvh; width: 100vw; 
+            overflow: hidden;
             display: flex; align-items: center; justify-content: center;
         }
 
-        /* --- 1. RWD Shell (App Container) --- */
         #app-shell {
             width: 100%; height: 100%;
             background: var(--bg-app); 
             display: flex; flex-direction: column;
-            position: relative; 
-            overflow: hidden;
+            position: relative; overflow: hidden;
         }
-
-        /* PC/Tablet Mode: Floating Card */
+        
         @media (min-width: 520px) {
             #app-shell {
-                width: var(--app-width);
-                height: 90vh;
-                max-height: var(--app-height);
-                border-radius: 24px;
-                box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+                width: var(--app-width); height: 90vh; max-height: var(--app-height);
+                border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.1);
             }
         }
 
         /* Header */
         header {
-            height: var(--header-h); padding: 0 16px;
+            height: var(--header-h); padding: 0 20px; flex-shrink: 0;
             display: flex; align-items: center; justify-content: space-between;
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
-            z-index: 100; border-bottom: 1px solid rgba(0,0,0,0.05);
+            border-bottom: 1px solid var(--border); background: #fff; z-index: 100;
         }
-        .brand { font-weight: 800; font-size: 20px; color: var(--text-main); display: flex; align-items: center; gap: 8px;}
-        .icon-btn {
-            background: transparent; border: none; cursor: pointer;
-            width: 40px; height: 40px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            color: #333; transition: background 0.2s;
-        }
-        .icon-btn:hover { background: #f2f2f7; }
-        .icon-btn.active { background: #eef4ff; color: var(--accent); }
-        .icon-btn svg { width: 24px; height: 24px; fill: currentColor; }
+        .app-title { font-weight: 800; font-size: 18px; color: var(--accent); }
+        .icon-btn { background: none; border: none; cursor: pointer; color: var(--accent); padding: 8px; border-radius: 50%; display:flex; align-items:center; justify-content:center;}
+        .icon-btn:hover { background: #f0f0f0; }
 
-        /* Viewport & Stage */
+        /* Viewport */
         #viewport {
-            flex: 1; background: #111; position: relative;
-            display: flex; align-items: center; justify-content: center;
-            overflow: hidden;
+            flex: 1; background: #1e1e1e; position: relative;
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
-        #editor-stage { position: relative; display: none; overflow: hidden; } /* Overflow hidden for stickers */
+        #empty-hint {
+            position: absolute; width: 100%; height: 100%; z-index: 50;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #888; background: #f9f9f9; cursor: pointer;
+        }
+        #empty-hint.hidden { display: none; }
         
+        #editor-stage { position: relative; display: none; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
         video { display: block; max-width: 100%; pointer-events: none; }
-
-        /* Layers Stack */
+        
+        /* Layers */
         .layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         
-        /* 1. Draw Layer */
-        #canvas-draw { z-index: 10; pointer-events: none; }
-        #canvas-draw.active { pointer-events: auto; cursor: crosshair; }
+        #canvas-draw { z-index: 5; pointer-events: none; }
+        #canvas-draw.active { pointer-events: auto; cursor: crosshair; z-index: 300; } 
         
-        /* 2. Sticker Layer */
-        #sticker-layer { z-index: 15; pointer-events: none; overflow: hidden; }
-        .sticker-item {
-            position: absolute; display: inline-block; cursor: grab; pointer-events: auto;
-            border: 1px dashed transparent; padding: 2px;
-        }
-        .sticker-item:hover, .sticker-item:active { border-color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.1); }
+        #widget-layer { z-index: 20; pointer-events: none; overflow: hidden; }
         
-        /* 3. Crop Layer */
-        #crop-overlay {
-            z-index: 20; 
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
-            border: 1px solid rgba(255,255,255,0.4);
-            pointer-events: none;
-            transition: opacity 0.2s;
+        /* Widget System */
+        .widget {
+            position: absolute; display: flex; align-items: center; justify-content: center;
+            pointer-events: auto; cursor: grab; transform-origin: center center;
+            border: 1px dashed transparent;
         }
-        #crop-overlay.editing { border: 2px solid #fff; cursor: move; pointer-events: auto; }
-        .crop-handle {
-            position: absolute; width: 24px; height: 24px;
-            background: var(--accent); border: 2px solid white; border-radius: 50%;
-            bottom: -12px; right: -12px; display: none;
+        .widget.selected { border: 1px dashed #fff; background: rgba(0,0,0,0.05); z-index: 150; }
+        
+        .bubble-inner {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none; z-index: 2;
         }
-        #crop-overlay.editing .crop-handle { display: block; }
+        .bubble-text {
+            min-width: 40px; min-height: 20px; width: 80%;
+            text-align: center; line-height: 1.2;
+            font-family: sans-serif; outline: none; cursor: text;
+            pointer-events: auto; white-space: pre-wrap; word-wrap: break-word;
+            padding: 5px; user-select: text; -webkit-user-select: text;
+        }
 
-        /* Timeline */
-        #timeline-panel {
-            height: 90px; background: #fff; padding: 0 16px;
-            border-top: 1px solid #f0f0f0; display: flex; flex-direction: column; justify-content: center;
+        /* Handles */
+        .w-handle {
+            position: absolute; width: 20px; height: 20px; background: #fff; 
+            border: 1px solid #999; border-radius: 50%;
+            display: none; align-items: center; justify-content: center;
+            z-index: 101; font-size: 10px; color: #333;
         }
-        .timeline-controls { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #888; margin-bottom: 8px;}
-        .track-wrap { position: relative; height: 40px; display: flex; align-items: center; }
-        .ruler {
-            position: absolute; top: 10px; width: 100%; height: 20px;
-            background-image: repeating-linear-gradient(90deg, #ddd 0, #ddd 1px, transparent 1px, transparent 5%);
+        .widget.selected .w-handle { display: flex; }
+        
+        .wh-nw { top: -10px; left: -10px; cursor: pointer; background: #ff4757; color: white; border:none;} 
+        .wh-rot { top: -30px; left: 50%; transform: translateX(-50%); cursor: grab; background: var(--accent-blue); color: white; border:none; width: 24px; height: 24px;}
+        .wh-se { bottom: -10px; right: -10px; cursor: nwse-resize; background: var(--accent-blue); border:none;} 
+        .wh-e  { top: 50%; right: -10px; transform: translateY(-50%); cursor: ew-resize; border-radius: 4px; height: 30px; width: 10px;}
+        .wh-s  { bottom: -10px; left: 50%; transform: translateX(-50%); cursor: ns-resize; border-radius: 4px; width: 30px; height: 10px;}
+
+        /* Crop Overlay */
+        #crop-overlay {
+            z-index: 10; border: 1px solid rgba(255,255,255,0.5); 
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7); pointer-events: none;
+            display: none; 
         }
-        .track-fill { position: absolute; height: 20px; top: 10px; background: rgba(0,122,255,0.2); border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent); }
-        .thumb { 
-            position: absolute; top: 2px; width: 16px; height: 36px; background: #fff; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3); border-radius: 4px; z-index: 5;
-            display: flex; align-items: center; justify-content: center; cursor: ew-resize;
+        #crop-overlay.editing { border: 2px solid #fff; pointer-events: auto; cursor: move; z-index: 200; }
+        
+        .crop-corner {
+            position: absolute; width: 24px; height: 24px; background: white; border-radius: 50%;
+            bottom: -12px; right: -12px; display: block; cursor: nwse-resize; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3); pointer-events: auto;
         }
-        .thumb::after { content:''; width:2px; height:12px; background:#ccc; }
-        #playhead { position: absolute; top:0; height:40px; width:2px; background: var(--danger); z-index: 4; pointer-events:none;}
 
         /* Toolbar */
         #toolbar {
-            height: var(--toolbar-h); background: #fff;
+            height: var(--toolbar-h); background: #fff; border-top: 1px solid var(--border);
             display: flex; align-items: center; justify-content: space-around;
-            border-top: 1px solid #f0f0f0;
-            padding-bottom: env(safe-area-inset-bottom);
+            flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom);
         }
         .tool-btn {
-            display: flex; flex-direction: column; align-items: center; gap: 4px;
-            font-size: 10px; color: #888; background: none; border: none; cursor: pointer; width: 60px;
+            background: none; border: none; color: #b2bec3; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; width: 50px;
         }
         .tool-btn.active { color: var(--accent); }
         .tool-btn svg { width: 24px; height: 24px; fill: currentColor; }
-        
-        /* Sub-Menu (Popover) */
-        .submenu {
-            position: absolute; bottom: 70px; left: 0; width: 100%;
-            display: none; justify-content: center; gap: 10px;
-            padding: 10px; pointer-events: none; z-index: 50;
-        }
-        .submenu.show { display: flex; pointer-events: auto; animation: fadeUp 0.2s ease; }
-        .pill-box {
-            background: #fff; padding: 6px 10px; border-radius: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; gap: 8px; align-items: center;
-        }
-        .pill-btn {
-            padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;
-            border: 1px solid #f0f0f0; background: #fff; color: #333; cursor: pointer;
-        }
-        .pill-btn:hover { background: #f5f5f7; }
 
+        /* Popovers */
+        .popover {
+            position: absolute; bottom: calc(var(--toolbar-h) + env(safe-area-inset-bottom) + 10px); 
+            left: 0; width: 100%; z-index: 300;
+            display: none; justify-content: center; pointer-events: none;
+        }
+        .popover.show { display: flex; pointer-events: auto; animation: fadeUp 0.2s; }
+        .pop-card {
+            background: rgba(255,255,255,0.98); backdrop-filter: blur(10px);
+            border-radius: 16px; padding: 12px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.15); display: flex; gap: 8px; flex-direction: column;
+            width: 90%; max-width: 380px;
+        }
+
+        .crop-section { width: 100%; }
+        .crop-title { font-size: 11px; color: #999; margin-bottom: 5px; font-weight: 600; text-transform: uppercase; }
+        .crop-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; }
+        
+        .ratio-btn {
+            display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 12px;
+            border-radius: 8px; cursor: pointer; background: #f8f9fa; border: 1px solid transparent;
+            min-width: 50px; flex-shrink: 0;
+        }
+        .ratio-btn:hover { background: #eef4ff; border-color: var(--accent-blue); }
+        .ratio-icon { border: 2px solid #555; border-radius: 2px; }
+        .ratio-txt { font-size: 10px; color: #555; font-weight: 600; }
+
+        /* Timeline */
+        #timeline { 
+            height: 60px; background: #f9f9f9; border-top: 1px solid var(--border); flex-shrink: 0; 
+            display: flex; align-items: center; padding: 0 10px; gap: 10px;
+        }
+        #play-ctrl { background: none; border: none; cursor: pointer; padding: 5px; color: #555; }
+        #track-container { 
+            flex: 1; height: 30px; position: relative; 
+            cursor: pointer; overflow: hidden; /* For canvas ruler */
+        }
+        /* Ruler Canvas */
+        #ruler-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        
+        .track { position: absolute; top: 13px; width: 100%; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; z-index: 2;}
+        .track-active { position: absolute; top: 13px; height: 4px; background: var(--accent-blue); z-index: 2;}
+        .thumb { 
+            position: absolute; top: 5px; width: 16px; height: 20px; background: #fff; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3); border-radius: 4px; z-index: 5; cursor: ew-resize;
+        }
+        .thumb::after { content:''; display:block; width:2px; height:10px; background:#ddd; margin: 5px auto; }
+        
+        #playhead { 
+            position: absolute; top: 0; height: 30px; width: 2px; background: #ff4757; 
+            z-index: 4; pointer-events: none; 
+        }
+        #playhead::after { content:''; position:absolute; top:-3px; left:-4px; width:10px; height:10px; border-radius:50%; background:#ff4757; }
+
+        @keyframes fadeUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
         /* Modal */
-        .modal {
+        #modal {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); z-index: 200; display: none;
-            backdrop-filter: blur(5px);
-            align-items: flex-end;
+            background: rgba(0,0,0,0.6); z-index: 500; display: none; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
         }
-        .modal.active { display: flex; }
-        .sheet {
-            width: 100%; background: #fff; border-radius: 24px 24px 0 0; padding: 24px;
-            max-height: 90%; overflow-y: auto; animation: slideUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-
-        .btn-primary {
-            width: 100%; padding: 14px; border-radius: 14px; background: var(--accent);
-            color: white; border: none; font-weight: 600; font-size: 16px; cursor: pointer;
-            margin-top: 10px; text-align: center;
-        }
-        .btn-sec { background: #f2f2f7; color: #333; }
+        .modal-box { background: #fff; width: 85%; max-width: 340px; border-radius: 16px; padding: 24px; text-align: center; }
+        .modal-h { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--accent); }
         
-        .preview-box { text-align: center; background: #f5f5f7; border-radius: 12px; padding: 20px; margin: 15px 0; }
-        .preview-box img { max-width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Helper Classes */
-        .hidden { display: none !important; }
-        .flex-row { display: flex; gap: 10px; width: 100%; }
-        input[type=color] { border:none; width: 30px; height: 30px; padding: 0; background: none; cursor: pointer;}
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: flex; justify-content: space-between; font-size: 13px; color: #666; margin-bottom: 5px; }
+        .form-row-grid { display: grid; grid-template-columns: 1fr 20px 1fr 40px; gap: 5px; align-items: center; }
+        .form-input { width: 100%; padding: 10px 5px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; text-align: center; }
+        .form-range { width: 100%; accent-color: var(--accent-blue); }
+        .lock-btn { background: none; border: 1px solid #ddd; border-radius: 8px; width: 100%; height: 40px; cursor: pointer; color: #555; display: flex; align-items: center; justify-content: center;}
+        .lock-btn.locked { background: #eef4ff; color: var(--accent-blue); border-color: var(--accent-blue); }
         
+        .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-main { flex: 1; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;}
+        .btn-sec { background: #f1f2f6; color: #333; }
+        
+        .res-icon-btn {
+            width: 60px; height: 60px; border-radius: 16px; border: 1px solid #eee; background: #fff;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; color: #555; gap: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        .res-icon-btn:hover { transform: scale(1.05); background: #f9f9f9; }
+        .res-icon-btn.primary { background: var(--accent); color: white; border: none; }
     </style>
 </head>
 <body>
 
 <div id="app-shell">
-    <!-- Header -->
     <header>
-        <div class="brand">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-            GIF Studio
-        </div>
-        <button class="icon-btn" onclick="openExport()" title="匯出">
-            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        <div class="app-title">MP4 to GIF</div>
+        <button class="icon-btn" onclick="document.getElementById('file-in').click()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
         </button>
+        <input type="file" id="file-in" accept="video/mp4" style="display:none" onchange="loadVideo(this.files[0])">
     </header>
 
-    <!-- Viewport -->
-    <div id="viewport">
-        <!-- Empty State -->
-        <div id="empty-state" style="text-align: center; color: #888;">
-            <button class="btn-primary" onclick="document.getElementById('file-in').click()" style="width: auto; padding: 12px 24px;">選擇 MP4 影片</button>
-            <p style="margin-top:10px; font-size:13px;">或將影片拖曳至此</p>
+    <div id="viewport" onclick="handleGlobalClick(event)">
+        <div id="empty-hint" onclick="document.getElementById('file-in').click()">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="#ccc"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+            <p style="margin-top:10px;">點擊或拖曳影片</p>
         </div>
-        <input type="file" id="file-in" accept="video/mp4" style="display:none" onchange="loadVideo(this.files[0])">
 
-        <!-- Stage -->
         <div id="editor-stage">
             <video id="video-src" muted playsinline></video>
-            <!-- Layer 1: Draw -->
+            
             <canvas id="canvas-draw" class="layer"></canvas>
-            <!-- Layer 2: Stickers -->
-            <div id="sticker-layer" class="layer"></div>
-            <!-- Layer 3: Crop -->
-            <div id="crop-overlay" class="layer" style="display:none; width:80%; height:80%; top:10%; left:10%;">
-                <div class="crop-handle" id="crop-handle"></div>
+            
+            <div id="crop-overlay" class="layer" style="width:100%; height:100%; top:0; left:0;">
+                <div class="crop-corner" id="crop-br"></div>
             </div>
+
+            <div id="widget-layer" class="layer"></div>
         </div>
     </div>
 
-    <!-- Timeline -->
-    <div id="timeline-panel">
-        <div class="timeline-controls">
-            <button class="icon-btn" id="play-btn" style="width:32px; height:32px;">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <span id="time-display">0:00 / 0:00</span>
-        </div>
-        <div class="track-wrap" id="track-area">
-            <div class="ruler"></div>
-            <div class="track-fill" id="track-fill" style="left:0%; width:100%"></div>
+    <div id="timeline">
+        <button id="play-ctrl" onclick="togglePlay()"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+        <!-- Scrubbing Track -->
+        <div id="track-container">
+            <canvas id="ruler-canvas"></canvas>
+            <div class="track"></div>
+            <div class="track-active" id="track-fill" style="left:0%; width:100%"></div>
             <div id="playhead"></div>
             <div class="thumb" id="th-start" style="left:0%"></div>
             <div class="thumb" id="th-end" style="left:100%"></div>
         </div>
     </div>
 
-    <!-- Toolbar -->
     <div id="toolbar">
         <button class="tool-btn" id="btn-crop" onclick="setMode('crop')">
             <svg viewBox="0 0 24 24"><path d="M17 15h2V7c0-1.1-.9-2-2-2H9v2h8v8zM7 17V1H5v4H1v2h4v10c0 1.1.9 2 2 2h10v4h2v-4h4v-2H7z"/></svg>
-            裁切
         </button>
-        <button class="tool-btn" id="btn-draw" onclick="setMode('draw')">
-            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-            塗鴉
+        <button class="tool-btn" id="btn-bubble" onclick="setMode('bubble')">
+            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
         </button>
         <button class="tool-btn" id="btn-sticker" onclick="setMode('sticker')">
             <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
-            貼紙
         </button>
-        <button class="tool-btn" id="btn-text" onclick="addText()">
-            <svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg>
-            文字
+        <button class="tool-btn" id="btn-draw" onclick="setMode('draw')">
+            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        </button>
+        <button class="tool-btn" onclick="preExport()" style="color:var(--accent-blue)">
+            <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
         </button>
     </div>
 
-    <!-- Sub-menus -->
-    <div id="menu-crop" class="submenu">
-        <div class="pill-box">
-            <button class="pill-btn" onclick="applyCrop(0)">Free</button>
-            <button class="pill-btn" onclick="applyCrop(1)">1:1</button>
-            <button class="pill-btn" onclick="applyCrop(16/9)">16:9</button>
-            <button class="pill-btn" onclick="setMode(null)" style="color:var(--accent)">完成</button>
+    <!-- Menus -->
+    <div id="menu-crop" class="popover">
+        <div class="pop-card">
+            <div class="crop-section">
+                <div class="crop-title">橫向</div>
+                <div class="crop-row">
+                    <div class="ratio-btn" onclick="applyCrop(0)"><div class="ratio-icon" style="width:20px;height:14px;border-style:dashed"></div><span class="ratio-txt">Free</span></div>
+                    <div class="ratio-btn" onclick="applyCrop(16/9)"><div class="ratio-icon" style="width:22px;height:12px;"></div><span class="ratio-txt">16:9</span></div>
+                    <div class="ratio-btn" onclick="applyCrop(4/3)"><div class="ratio-icon" style="width:20px;height:15px;"></div><span class="ratio-txt">4:3</span></div>
+                    <div class="ratio-btn" onclick="applyCrop(3/2)"><div class="ratio-icon" style="width:21px;height:14px;"></div><span class="ratio-txt">3:2</span></div>
+                    <div class="ratio-btn" onclick="applyCrop(2/1)"><div class="ratio-icon" style="width:24px;height:12px;"></div><span class="ratio-txt">2:1</span></div>
+                </div>
+            </div>
+            <div class="crop-section" style="margin-top:10px;">
+                <div class="crop-title">直向 / 方形</div>
+                <div class="crop-row">
+                    <div class="ratio-btn" onclick="applyCrop(1)"><div class="ratio-icon" style="width:16px;height:16px;"></div><span class="ratio-txt">1:1</span></div>
+                    <div class="ratio-btn" onclick="applyCrop(9/16)"><div class="ratio-icon" style="width:12px;height:22px;"></div><span class="ratio-txt">9:16</span></div>
+                    <div class="ratio-btn" onclick="applyCrop(3/4)"><div class="ratio-icon" style="width:15px;height:20px;"></div><span class="ratio-txt">3:4</span></div>
+                    <div class="ratio-btn" onclick="applyCrop(2/3)"><div class="ratio-icon" style="width:14px;height:21px;"></div><span class="ratio-txt">2:3</span></div>
+                    <div class="ratio-btn" onclick="applyCrop(1/2)"><div class="ratio-icon" style="width:12px;height:24px;"></div><span class="ratio-txt">1:2</span></div>
+                </div>
+            </div>
+            <div style="width:100%; text-align:center; margin-top:8px;">
+                <button class="ratio-btn" style="width:100%" onclick="setMode(null)"><span class="ratio-txt" style="color:var(--accent-blue);">完成裁切</span></button>
+            </div>
         </div>
     </div>
 
-    <div id="menu-draw" class="submenu">
-        <div class="pill-box">
-            <input type="color" id="draw-color" value="#ff3b30">
-            <button class="pill-btn" onclick="clearCanvas()">清除</button>
-            <button class="pill-btn" onclick="setMode(null)" style="color:var(--accent)">完成</button>
+    <div id="menu-sticker" class="popover">
+        <div class="pop-card" style="flex-direction:row; flex-wrap:wrap; justify-content:center;">
+            <span style="font-size:24px; cursor:pointer; padding:5px;" onclick="addWidget('text', '文字')">🔤</span>
+            <span style="font-size:24px; cursor:pointer; padding:5px;" onclick="addWidget('sticker', '🔥')">🔥</span>
+            <span style="font-size:24px; cursor:pointer; padding:5px;" onclick="addWidget('sticker', '😎')">😎</span>
+            <button class="ratio-btn" onclick="document.getElementById('file-sticker').click()"><span class="ratio-txt">上傳</span></button>
+            <input type="file" id="file-sticker" accept="image/*" style="display:none" onchange="handleStickerUpload(event)">
+            <button class="ratio-btn" onclick="setMode(null)"><span class="ratio-txt" style="color:var(--accent-blue);">完成</span></button>
         </div>
     </div>
 
-    <div id="menu-sticker" class="submenu">
-        <div class="pill-box">
-            <button class="pill-btn" style="font-size:18px" onclick="addSticker('🔥')">🔥</button>
-            <button class="pill-btn" style="font-size:18px" onclick="addSticker('😂')">😂</button>
-            <button class="pill-btn" style="font-size:18px" onclick="addSticker('🎉')">🎉</button>
-            <button class="pill-btn" onclick="document.getElementById('img-in').click()">上傳</button>
-            <input type="file" id="img-in" accept="image/*" style="display:none" onchange="uploadSticker(event)">
-            <button class="pill-btn" onclick="setMode(null)" style="color:var(--accent)">完成</button>
+    <div id="menu-bubble" class="popover">
+        <div class="pop-card" style="flex-direction:row; justify-content:center;">
+            <div class="ratio-btn" onclick="addBubble(1)"><svg width="24" height="24" viewBox="0 0 100 100"><path d="M5,5 h90 v60 h-40 l-10,20 l-10,-20 h-30 z" fill="none" stroke="black" stroke-width="5"/></svg></div>
+            <div class="ratio-btn" onclick="addBubble(2)"><svg width="24" height="24" viewBox="0 0 100 100"><ellipse cx="50" cy="40" rx="45" ry="35" fill="none" stroke="black" stroke-width="5"/><path d="M30,70 L20,95 L50,73" fill="none" stroke="black" stroke-width="5"/></svg></div>
+            <div class="ratio-btn" onclick="addBubble(3)"><svg width="24" height="24" viewBox="0 0 100 100"><path d="M20,40 Q10,20 40,20 Q50,0 70,20 Q95,20 90,50 Q100,80 70,80 Q60,95 40,80 Q10,80 20,40" fill="none" stroke="black" stroke-width="5"/></svg></div>
+            <button class="ratio-btn" onclick="setMode(null)"><span class="ratio-txt" style="color:var(--accent-blue);">完成</span></button>
         </div>
     </div>
 
-    <!-- Export / Result Modal -->
-    <div id="modal-export" class="modal">
-        <div class="sheet">
-            
-            <!-- Phase 1: Settings -->
-            <div id="ui-settings">
-                <h3>輸出設定</h3>
-                
-                <div style="margin-bottom:20px;">
-                    <label style="display:block; margin-bottom:10px; font-weight:600;">尺寸寬度</label>
-                    <div class="flex-row">
-                        <button class="pill-btn" onclick="setExportW(320)">320px</button>
-                        <button class="pill-btn" onclick="setExportW(480)">480px</button>
-                        <button class="pill-btn" onclick="setExportW(0)">原始</button>
-                        <input type="number" id="inp-width" value="320" style="width:80px; text-align:center; border:1px solid #ddd; border-radius:8px;">
-                    </div>
-                </div>
-
-                <div style="margin-bottom:20px;">
-                    <label style="display:block; margin-bottom:10px; font-weight:600;">品質 / FPS</label>
-                    <input type="range" id="inp-q" min="1" max="20" value="10" style="width:100%">
-                    <p style="font-size:12px; color:#888;">(左: 低品質/快  右: 高品質/慢)</p>
-                </div>
-
-                <div class="flex-row">
-                    <button class="btn-primary btn-sec" onclick="closeModal()">取消</button>
-                    <button class="btn-primary" onclick="startExport()">開始製作</button>
-                </div>
-            </div>
-
-            <!-- Phase 2: Processing -->
-            <div id="ui-process" class="hidden" style="text-align:center;">
-                <h3>處理中...</h3>
-                <div style="height:6px; background:#f2f2f7; border-radius:3px; margin:20px 0;">
-                    <div id="p-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s"></div>
-                </div>
-                <p id="p-text" style="color:#666; font-size:14px;">正在分析畫面</p>
-            </div>
-
-            <!-- Phase 3: Result -->
-            <div id="ui-result" class="hidden">
-                <h3 style="text-align:center; color:var(--accent);">🎉 製作完成</h3>
-                
-                <div class="preview-box">
-                    <img id="res-img">
-                    <p style="font-size:12px; color:#888; margin-top:5px;">長按圖片可直接儲存</p>
-                </div>
-
-                <div class="flex-row" style="flex-wrap:wrap;">
-                    <button class="btn-primary" id="btn-dl">下載 GIF</button>
-                    <button class="btn-primary btn-sec" onclick="showSettings()" style="width:48%">返回修改</button>
-                    <button class="btn-primary btn-sec" onclick="resetApp()" style="width:48%">製作新影片</button>
-                </div>
-            </div>
-
+    <div id="menu-draw" class="popover">
+        <div class="pop-card" style="flex-direction:row; justify-content:center;">
+            <input type="color" id="draw-color" value="#ff0000">
+            <button class="ratio-btn" onclick="clearDraw()"><span class="ratio-txt">清除</span></button>
+            <button class="ratio-btn" onclick="setMode(null)"><span class="ratio-txt" style="color:var(--accent-blue);">完成</span></button>
         </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="modal">
+        <div class="modal-box" id="modal-content"></div>
     </div>
 
 </div>
 
 <script>
-/* 
- * GIF Studio V4 Core Logic 
- */
-const state = {
-    file: null, dur: 0, start: 0, end: 0,
-    mode: null, // crop, draw, sticker
-    play: false,
-};
+/** V19: Final - No Play Overlay, Real-time Ruler */
 
-// Elements
+const state = { 
+    file: null, dur: 0, start: 0, end: 0, mode: null, selectedWidget: null, locked: true,
+    exportParams: { width: 320, fps: 10, quality: 10 }
+};
 const video = document.getElementById('video-src');
 const stage = document.getElementById('editor-stage');
-const cvsDraw = document.getElementById('canvas-draw');
-const ctxDraw = cvsDraw.getContext('2d');
-const stickerLayer = document.getElementById('sticker-layer');
+const wLayer = document.getElementById('widget-layer');
 const cropOver = document.getElementById('crop-overlay');
-const cropHandle = document.getElementById('crop-handle');
+const emptyHint = document.getElementById('empty-hint');
+const ctxDraw = document.getElementById('canvas-draw').getContext('2d');
+const playBtn = document.getElementById('play-ctrl');
 
-// --- 1. Init & Video Load ---
+// 1. Load
 function loadVideo(file) {
     if(!file) return;
     state.file = file;
-    document.getElementById('empty-state').classList.add('hidden');
-    stage.style.display = 'block';
-    
+    emptyHint.classList.add('hidden');
+    stage.style.display='block';
     video.src = URL.createObjectURL(file);
     video.load();
-    
-    // Clear previous edits
-    clearCanvas();
-    stickerLayer.innerHTML = '';
-    applyCrop(0); // reset crop
+    wLayer.innerHTML = ''; clearDraw();
+    cropOver.style.display='block'; 
+    applyCrop(0);
 }
 
+// Global Click
+function handleGlobalClick(e) {
+    if(state.mode === 'draw') return; 
+    if(e.target.isContentEditable) return;
+    if(e.target.closest('.widget') || e.target.closest('.crop-corner') || e.target.closest('#toolbar') || e.target.closest('.popover') || e.target.closest('#timeline')) return;
+    if(state.selectedWidget) deselectWidget();
+}
+
+const vp = document.getElementById('viewport');
+vp.addEventListener('dragover', e=>e.preventDefault());
+vp.addEventListener('drop', e=>{ e.preventDefault(); if(e.dataTransfer.files[0]?.type.includes('video')) loadVideo(e.dataTransfer.files[0]); });
+
 video.onloadedmetadata = () => {
-    state.dur = video.duration;
-    state.end = state.dur;
-    
-    // Resize Stage to fit container (contain)
-    const vp = document.getElementById('viewport');
-    const r = video.videoWidth / video.videoHeight;
-    let w = vp.clientWidth;
-    let h = w / r;
-    if(h > vp.clientHeight) { h = vp.clientHeight; w = h * r; }
-    
-    stage.style.width = w + 'px';
-    stage.style.height = h + 'px';
-    
-    // Sync Draw Canvas resolution to Video Resolution
-    cvsDraw.width = video.videoWidth;
-    cvsDraw.height = video.videoHeight;
-    
-    updateTimeline();
-    document.getElementById('time-display').innerText = `0:00 / ${fmt(state.dur)}`;
+    state.dur = video.duration; state.end = state.dur;
+    resizeStage(); 
+    updateTimelineUI();
+    drawRuler(); // Draw ruler initially
+};
+window.onresize = () => { resizeStage(); drawRuler(); };
+
+function resizeStage() {
+    if(!video.videoWidth) return;
+    const r = video.videoWidth/video.videoHeight;
+    let w = vp.clientWidth, h = w/r;
+    if(h > vp.clientHeight) { h = vp.clientHeight; w = h*r; }
+    stage.style.width = w+'px'; stage.style.height = h+'px';
+    document.getElementById('canvas-draw').width = video.videoWidth;
+    document.getElementById('canvas-draw').height = video.videoHeight;
+}
+
+// 2. Playback
+function togglePlay() {
+    if(video.paused) { 
+        video.play(); 
+        playBtn.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/></svg>'; 
+    } else { 
+        video.pause(); 
+        playBtn.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>'; 
+    }
+}
+video.ontimeupdate = () => {
+    if (video.currentTime >= state.end) video.currentTime = state.start;
+    const p = (video.currentTime / state.dur) * 100;
+    document.getElementById('playhead').style.left = p + '%';
 };
 
-window.onresize = () => video.onloadedmetadata();
+// Timeline Logic
+const thS=document.getElementById('th-start'), thE=document.getElementById('th-end');
+const trkCont = document.getElementById('track-container');
+const rulerCanvas = document.getElementById('ruler-canvas');
 
-// --- 2. Tool Modes ---
+// Draw Ruler Function
+function drawRuler() {
+    if(!state.dur) return;
+    const w = trkCont.clientWidth;
+    const h = trkCont.clientHeight;
+    rulerCanvas.width = w;
+    rulerCanvas.height = h;
+    const ctx = rulerCanvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    
+    // Calculate pixels per second
+    const pxPerSec = w / state.dur;
+    
+    // Determine interval (if video is long, don't draw every second)
+    let interval = 1;
+    if (pxPerSec < 20) interval = 5; // e.g., if < 20px per sec, draw every 5s
+    if (pxPerSec < 5) interval = 10;
+
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 1;
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = '#666';
+    
+    for (let t = 0; t <= state.dur; t += interval) {
+        const x = (t / state.dur) * w;
+        
+        // Draw Main Tick (Second)
+        ctx.beginPath();
+        ctx.moveTo(x, h);
+        ctx.lineTo(x, h - 10); // 10px high
+        ctx.stroke();
+        
+        // Sub-ticks (0.5s) if space permits
+        if (pxPerSec > 40) {
+            const halfX = ((t + 0.5) / state.dur) * w;
+            if (halfX < w) {
+                ctx.beginPath();
+                ctx.moveTo(halfX, h);
+                ctx.lineTo(halfX, h - 5);
+                ctx.stroke();
+            }
+        }
+    }
+}
+
+function scrubVideo(e) {
+    if(e.target.classList.contains('thumb')) return; 
+    e.preventDefault();
+    video.pause();
+    const rect = trkCont.getBoundingClientRect();
+    const seek = (clientX) => {
+        let pct = (clientX - rect.left) / rect.width;
+        pct = Math.max(0, Math.min(1, pct));
+        video.currentTime = pct * state.dur;
+        document.getElementById('playhead').style.left = (pct * 100) + '%';
+    };
+    const move = (ev) => seek(ev.touches ? ev.touches[0].clientX : ev.clientX);
+    const up = () => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('touchmove', move);
+        window.removeEventListener('mouseup', up);
+        window.removeEventListener('touchend', up);
+    };
+    seek(e.touches ? e.touches[0].clientX : e.clientX);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('touchmove', move, {passive:false});
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchend', up);
+}
+trkCont.addEventListener('mousedown', scrubVideo);
+trkCont.addEventListener('touchstart', scrubVideo);
+
+function initSlide(el, isStart) {
+    const handle = (clientX) => {
+        const rect = trkCont.getBoundingClientRect();
+        let pct = (clientX - rect.left) / rect.width * 100;
+        pct = Math.max(0, Math.min(100, pct));
+        if (isStart) {
+            const endPct = parseFloat(thE.style.left);
+            if (pct < endPct - 1) {
+                thS.style.left = pct + '%'; state.start = (pct/100) * state.dur; video.currentTime = state.start;
+            }
+        } else {
+            const startPct = parseFloat(thS.style.left);
+            if (pct > startPct + 1) {
+                thE.style.left = pct + '%'; state.end = (pct/100) * state.dur;
+            }
+        }
+        document.getElementById('track-fill').style.left = thS.style.left;
+        document.getElementById('track-fill').style.width = (parseFloat(thE.style.left) - parseFloat(thS.style.left)) + '%';
+    };
+    const down = (e) => {
+        e.preventDefault(); e.stopPropagation(); 
+        const move = (ev) => handle(ev.touches?ev.touches[0].clientX:ev.clientX);
+        const up = () => { window.removeEventListener('mousemove',move); window.removeEventListener('touchmove',move); window.removeEventListener('mouseup',up); window.removeEventListener('touchend',up); };
+        window.addEventListener('mousemove',move); window.addEventListener('touchmove',move,{passive:false});
+        window.addEventListener('mouseup',up); window.addEventListener('touchend',up);
+    };
+    el.addEventListener('mousedown', down); el.addEventListener('touchstart', down);
+}
+initSlide(thS, true); initSlide(thE, false);
+function updateTimelineUI() {
+    thS.style.left='0%'; thE.style.left='100%';
+    state.start = 0; state.end = state.dur;
+    document.getElementById('track-fill').style.left='0%'; document.getElementById('track-fill').style.width='100%';
+}
+
+// 3. Tools
 function setMode(m) {
     state.mode = m;
-    
-    // UI Reset
     document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.submenu').forEach(s => s.classList.remove('show'));
+    document.querySelectorAll('.popover').forEach(p => p.classList.remove('show'));
     cropOver.classList.remove('editing');
-    cvsDraw.classList.remove('active');
+    document.getElementById('canvas-draw').classList.remove('active');
     
     if(m) {
         document.getElementById('btn-'+m).classList.add('active');
-        const menu = document.getElementById('menu-'+m);
-        if(menu) menu.classList.add('show');
+        document.getElementById('menu-'+m).classList.add('show');
     }
-
-    if(m === 'crop') {
-        cropOver.style.display = 'block';
+    
+    if(m==='crop') {
         cropOver.classList.add('editing');
-    } else if (m === 'draw') {
-        cvsDraw.classList.add('active');
+        wLayer.style.pointerEvents='none';
+    } else {
+        wLayer.style.pointerEvents='none'; 
+        if(state.selectedWidget) selectWidget(state.selectedWidget);
     }
+    
+    if(m==='draw') document.getElementById('canvas-draw').classList.add('active');
 }
 
-// --- 3. Crop Logic ---
-function applyCrop(ratio) {
-    if(ratio === 0) {
-        cropOver.style.cssText = "display:block; width:100%; height:100%; top:0; left:0";
+// 4. Widget System
+let uid=0;
+function addWidget(type, content) {
+    uid++;
+    const el = document.createElement('div');
+    el.className = 'widget'; el.id = 'w-'+uid;
+    el.style.left = '30%'; el.style.top = '30%';
+    
+    if(type==='sticker' || type==='image') {
+        if(type==='sticker') { el.style.width='120px'; el.style.height='120px'; }
+    } else {
+        el.style.width = '140px'; el.style.height = '120px';
+    }
+    el.dataset.rot = 0;
+    
+    let inner = '';
+    if(type==='text') {
+        el.style.width='auto'; el.style.height='auto';
+        inner = `<div class="bubble-text" contenteditable="true" style="color:white;text-shadow:0 2px 4px black;font-weight:bold;min-width:60px;">${content}</div>`;
+    } 
+    else if(type==='sticker' || type==='image') {
+        const html = type==='sticker' ? `<span style="font-size:60px;pointer-events:none;">${content}</span>` : `<img src="${content}" style="width:100%;height:100%;pointer-events:none;">`;
+        inner = html;
+        if(type==='image') {
+            const img = new Image();
+            img.src = content;
+            img.onload = () => {
+                const ratio = img.width / img.height;
+                const baseSize = 150;
+                if(ratio > 1) { el.style.width = baseSize + 'px'; el.style.height = (baseSize/ratio) + 'px'; }
+                else { el.style.height = baseSize + 'px'; el.style.width = (baseSize*ratio) + 'px'; }
+            };
+        }
+    } 
+    else if(type==='bubble') {
+        let path = '';
+        if(content===1) path='<path d="M5,5 h90 v60 h-40 l-10,20 l-10,-20 h-30 z" fill="white" stroke="black" stroke-width="3"/>';
+        if(content===2) path='<ellipse cx="50" cy="40" rx="45" ry="35" fill="white" stroke="black" stroke-width="3"/><path d="M30,70 L20,95 L50,73" fill="white" stroke="black" stroke-width="3"/>';
+        if(content===3) path='<path d="M20,40 Q10,20 40,20 Q50,0 70,20 Q95,20 90,50 Q100,80 70,80 Q60,95 40,80 Q10,80 20,40" fill="white" stroke="black" stroke-width="3"/>';
+        
+        inner = `
+            <svg viewBox="0 0 100 100" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,0.2))" preserveAspectRatio="none">${path}</svg>
+            <div class="bubble-inner">
+                <div class="bubble-text" contenteditable="true" style="color:black;">輸入文字</div>
+            </div>`;
+        el.dataset.isBubble="true";
+    }
+
+    el.innerHTML = inner + `
+        <button class="w-handle wh-nw" onclick="removeWidget('${el.id}')">×</button>
+        <button class="w-handle wh-rot" onmousedown="startRot(event,'${el.id}')" ontouchstart="startRot(event,'${el.id}')">⟳</button>
+        <button class="w-handle wh-se" onmousedown="startScale(event,'${el.id}','se')" ontouchstart="startScale(event,'${el.id}','se')">↘</button>
+        <button class="w-handle wh-e" onmousedown="startScale(event,'${el.id}','e')" ontouchstart="startScale(event,'${el.id}','e')"></button>
+        <button class="w-handle wh-s" onmousedown="startScale(event,'${el.id}','s')" ontouchstart="startScale(event,'${el.id}','s')"></button>
+    `;
+    
+    const handleMove = (e) => {
+        if(e.target.isContentEditable || e.target.classList.contains('w-handle')) return;
+        selectWidget(el); startMove(e,el);
+    };
+    el.addEventListener('mousedown', handleMove);
+    el.addEventListener('touchstart', handleMove);
+    
+    wLayer.appendChild(el); selectWidget(el); setMode(null);
+}
+
+function addBubble(t){addWidget('bubble',t)}
+function handleStickerUpload(e){const f=e.target.files[0]; if(f){const r=new FileReader();r.onload=v=>addWidget('image',v.target.result);r.readAsDataURL(f)}}
+function removeWidget(id){document.getElementById(id).remove();state.selectedWidget=null;}
+function selectWidget(el){ if(state.selectedWidget) state.selectedWidget.classList.remove('selected'); state.selectedWidget=el; el.classList.add('selected'); }
+function deselectWidget(){ if(state.selectedWidget){state.selectedWidget.classList.remove('selected');state.selectedWidget=null;} }
+
+// Transforms
+function startMove(e, el){
+    e.preventDefault();
+    const p=e.touches?e.touches[0]:e;
+    const sx=p.clientX, sy=p.clientY, sl=el.offsetLeft, st=el.offsetTop;
+    const mv=ev=>{
+        const pp=ev.touches?ev.touches[0]:ev;
+        el.style.left=(sl+pp.clientX-sx)+'px'; el.style.top=(st+pp.clientY-sy)+'px';
+    };
+    const up=()=>{window.removeEventListener('mousemove',mv);window.removeEventListener('touchmove',mv)};
+    window.addEventListener('mousemove',mv);window.addEventListener('touchmove',mv,{passive:false});
+    window.addEventListener('mouseup',up);window.addEventListener('touchend',up);
+}
+function startScale(e, id, mode) {
+    e.stopPropagation(); e.preventDefault();
+    const el = document.getElementById(id);
+    const p = e.touches?e.touches[0]:e;
+    const sx = p.clientX; const sy = p.clientY;
+    const startW = el.offsetWidth; const startH = el.offsetHeight;
+    const ratio = startW / startH;
+    const txtEl = el.querySelector('.bubble-text') || el.querySelector('span');
+    const startFS = txtEl ? parseFloat(window.getComputedStyle(txtEl).fontSize) : 16;
+    const mv = ev => {
+        const pp = ev.touches?ev.touches[0]:ev;
+        const dx = pp.clientX - sx; const dy = pp.clientY - sy;
+        if (mode === 'se') {
+            const newW = Math.max(40, startW + dx);
+            if (el.dataset.isBubble || el.querySelector('img')) {
+                el.style.width = newW + 'px'; el.style.height = (newW / ratio) + 'px';
+            } else if (txtEl) {
+                const scale = newW / startW; txtEl.style.fontSize = (startFS * scale) + 'px';
+            }
+        } else if (mode === 'e') { el.style.width = Math.max(40, startW + dx) + 'px'; } 
+        else if (mode === 's') { if(el.dataset.isBubble || el.querySelector('img')) el.style.height = Math.max(40, startH + dy) + 'px'; }
+    };
+    const up=()=>{window.removeEventListener('mousemove',mv);window.removeEventListener('touchmove',mv)};
+    window.addEventListener('mousemove',mv);window.addEventListener('touchmove',mv,{passive:false});
+    window.addEventListener('mouseup',up);window.addEventListener('touchend',up);
+}
+function startRot(e, id){
+    e.stopPropagation(); e.preventDefault();
+    const el=document.getElementById(id);
+    const r=el.getBoundingClientRect(); const cx=r.left+r.width/2, cy=r.top+r.height/2;
+    const mv=ev=>{
+        const pp=ev.touches?ev.touches[0]:ev;
+        const deg=Math.atan2(pp.clientY-cy, pp.clientX-cx)*(180/Math.PI)+90;
+        el.style.transform=`rotate(${deg}deg)`; el.dataset.rot=deg;
+    };
+    const up=()=>{window.removeEventListener('mousemove',mv);window.removeEventListener('touchmove',mv)};
+    window.addEventListener('mousemove',mv);window.addEventListener('touchmove',mv,{passive:false});
+    window.addEventListener('mouseup',up);window.addEventListener('touchend',up);
+}
+
+// 5. Crop
+const cropBr = document.getElementById('crop-br');
+// Handles always active logic
+cropBr.addEventListener('mousedown', e=>startCrop(e,true)); cropBr.addEventListener('touchstart', e=>startCrop(e,true));
+cropOver.addEventListener('mousedown', e=>{
+    // Allow dragging crop body if handles not clicked
+    if(e.target===cropOver) startCrop(e,false);
+});
+cropOver.addEventListener('touchstart', e=>{
+    if(e.target===cropOver) startCrop(e,false);
+});
+
+// Fixed Apply Crop to adjust CURRENT box
+function applyCrop(r){
+    const sw=stage.offsetWidth, sh=stage.offsetHeight;
+    if(r===0){
+        // Free: Reset to 100%
+        cropOver.style.cssText="display:block;width:100%;height:100%;top:0;left:0";
         return;
     }
-    const sw = stage.offsetWidth;
-    const sh = stage.offsetHeight;
-    let w = sw * 0.8; 
-    let h = w / ratio;
-    if(h > sh) { h = sh * 0.8; w = h * ratio; }
+    const curW = cropOver.offsetWidth;
+    let newH = curW / r; let newW = curW;
+    if(newH > sh) { newH = sh; newW = newH * r; }
     
-    // Center
-    cropOver.style.width = (w/sw*100) + '%';
-    cropOver.style.height = (h/sh*100) + '%';
-    cropOver.style.left = ((sw-w)/2/sw*100) + '%';
-    cropOver.style.top = ((sh-h)/2/sh*100) + '%';
+    // Center in current view
+    cropOver.style.width=(newW/sw*100)+'%'; 
+    cropOver.style.height=(newH/sh*100)+'%';
+    cropOver.style.left=((sw-newW)/2/sw*100)+'%'; 
+    cropOver.style.top=((sh-newH)/2/sh*100)+'%';
 }
 
-// Crop Interact (Drag/Resize)
-let isCropDrag = false;
-let cx, cy, cL, cT, cW, cH;
-cropHandle.addEventListener('touchstart', e => startCrop(e, true));
-cropHandle.addEventListener('mousedown', e => startCrop(e, true));
-cropOver.addEventListener('touchstart', e => { if(e.target===cropOver) startCrop(e, false) });
-cropOver.addEventListener('mousedown', e => { if(e.target===cropOver) startCrop(e, false) });
-
-function startCrop(e, resize) {
-    if(state.mode !== 'crop') return;
-    e.preventDefault();
-    const p = e.touches ? e.touches[0] : e;
-    cx = p.clientX; cy = p.clientY;
-    cL = cropOver.offsetLeft; cT = cropOver.offsetTop;
-    cW = cropOver.offsetWidth; cH = cropOver.offsetHeight;
-    
-    const move = (ev) => {
-        const pp = ev.touches ? ev.touches[0] : ev;
-        const dx = pp.clientX - cx;
-        const dy = pp.clientY - cy;
-        const sw = stage.offsetWidth; const sh = stage.offsetHeight;
-        
-        if(resize) {
-            let nw = cW + dx; let nh = cH + dy;
-            if(nw > 50 && cL+nw <= sw) cropOver.style.width = (nw/sw*100)+'%';
-            if(nh > 50 && cT+nh <= sh) cropOver.style.height = (nh/sh*100)+'%';
+function startCrop(e, resize){
+    e.preventDefault(); e.stopPropagation();
+    const p=e.touches?e.touches[0]:e;
+    const cx=p.clientX, cy=p.clientY;
+    const cL=cropOver.offsetLeft, cT=cropOver.offsetTop, cW=cropOver.offsetWidth, cH=cropOver.offsetHeight;
+    const mv=ev=>{
+        const pp=ev.touches?ev.touches[0]:ev;
+        const dx=pp.clientX-cx, dy=pp.clientY-cy;
+        const sw=stage.offsetWidth, sh=stage.offsetHeight;
+        if(resize){
+            let nw=cW+dx, nh=cH+dy;
+            if(nw>40 && cL+nw<=sw) cropOver.style.width=(nw/sw*100)+'%';
+            if(nh>40 && cT+nh<=sh) cropOver.style.height=(nh/sh*100)+'%';
         } else {
-            let nl = cL + dx; let nt = cT + dy;
-            if(nl >= 0 && nl+cW <= sw) cropOver.style.left = (nl/sw*100)+'%';
-            if(nt >= 0 && nt+cH <= sh) cropOver.style.top = (nt/sh*100)+'%';
+            let nl=cL+dx, nt=cT+dy;
+            if(nl>=0 && nl+cW<=sw) cropOver.style.left=(nl/sw*100)+'%';
+            if(nt>=0 && nt+cH<=sh) cropOver.style.top=(nt/sh*100)+'%';
         }
     };
-    const end = () => {
-        window.removeEventListener('mousemove', move); window.removeEventListener('touchmove', move);
-        window.removeEventListener('mouseup', end); window.removeEventListener('touchend', end);
-    };
-    window.addEventListener('mousemove', move); window.addEventListener('touchmove', move, {passive:false});
-    window.addEventListener('mouseup', end); window.addEventListener('touchend', end);
+    const up=()=>{window.removeEventListener('mousemove',mv);window.removeEventListener('touchmove',mv);window.removeEventListener('mouseup',up);window.removeEventListener('touchend',up)};
+    window.addEventListener('mousemove',mv);window.addEventListener('touchmove',mv,{passive:false});
+    window.addEventListener('mouseup',up);window.addEventListener('touchend',up);
 }
 
+// 6. Draw
+let isD=false; const cvs=document.getElementById('canvas-draw');
+function getDP(e){const r=cvs.getBoundingClientRect();return{x:(e.clientX-r.left)*(cvs.width/r.width),y:(e.clientY-r.top)*(cvs.height/r.height)}}
+cvs.addEventListener('mousedown',e=>{if(state.mode!=='draw')return; e.stopPropagation(); isD=true;ctxDraw.beginPath();ctxDraw.moveTo(getDP(e).x,getDP(e).y)});
+cvs.addEventListener('mousemove',e=>{if(!isD)return; e.stopPropagation(); ctxDraw.lineTo(getDP(e).x,getDP(e).y);ctxDraw.strokeStyle=document.getElementById('draw-color').value;ctxDraw.lineWidth=5;ctxDraw.stroke()});
+window.addEventListener('mouseup',()=>isD=false);
+function clearDraw(){ctxDraw.clearRect(0,0,cvs.width,cvs.height)}
 
-// --- 4. Drawing Logic ---
-let isDrawing = false;
-function getDrawPos(e) {
-    const r = cvsDraw.getBoundingClientRect();
-    const scaleX = cvsDraw.width / r.width;
-    const scaleY = cvsDraw.height / r.height;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-        x: (clientX - r.left) * scaleX,
-        y: (clientY - r.top) * scaleY
-    };
-}
-const startDraw = (e) => {
-    if(state.mode !== 'draw') return;
-    isDrawing = true;
-    ctxDraw.beginPath();
-    const p = getDrawPos(e);
-    ctxDraw.moveTo(p.x, p.y);
-};
-const moveDraw = (e) => {
-    if(!isDrawing) return;
-    e.preventDefault();
-    const p = getDrawPos(e);
-    ctxDraw.lineTo(p.x, p.y);
-    ctxDraw.strokeStyle = document.getElementById('draw-color').value;
-    ctxDraw.lineWidth = video.videoWidth * 0.015; // Responsive Line Width
-    ctxDraw.lineCap = 'round';
-    ctxDraw.stroke();
-};
-cvsDraw.addEventListener('mousedown', startDraw);
-cvsDraw.addEventListener('mousemove', moveDraw);
-cvsDraw.addEventListener('touchstart', startDraw);
-cvsDraw.addEventListener('touchmove', moveDraw, {passive:false});
-window.addEventListener('mouseup', () => isDrawing = false);
-window.addEventListener('touchend', () => isDrawing = false);
-
-function clearCanvas() { ctxDraw.clearRect(0,0,cvsDraw.width,cvsDraw.height); }
-
-
-// --- 5. Stickers & Text ---
-function createFloatEl(content, isImg) {
-    const el = document.createElement('div');
-    el.className = 'sticker-item';
-    el.style.top = '30%'; el.style.left = '30%';
+// 7. Export
+function preExport(){
+    if(!state.file)return alert("請開啟影片");
+    video.pause(); deselectWidget();
     
-    if(isImg) {
-        const img = document.createElement('img');
-        img.src = content; img.style.width='100px'; img.style.pointerEvents='none';
-        el.appendChild(img);
-    } else {
-        el.innerText = content;
-        el.style.fontSize = '40px';
-        el.style.whiteSpace = 'nowrap';
-    }
+    // Default size logic
+    const cw = parseFloat(cropOver.style.width) * video.videoWidth / 100;
+    const ch = parseFloat(cropOver.style.height) * video.videoHeight / 100;
+    const aspect = cw/ch;
     
-    // Drag Logic
-    el.onmousedown = el.ontouchstart = (e) => {
-        if(state.mode !== 'sticker' && state.mode !== 'text' && state.mode !== null) return;
-        e.preventDefault(); e.stopPropagation();
-        const p = e.touches ? e.touches[0] : e;
-        const sx = p.clientX; const sy = p.clientY;
-        const sl = el.offsetLeft; const st = el.offsetTop;
-        
-        const move = (ev) => {
-            const pp = ev.touches ? ev.touches[0] : ev;
-            el.style.left = (sl + pp.clientX - sx) + 'px';
-            el.style.top = (st + pp.clientY - sy) + 'px';
-        };
-        const stop = () => {
-            window.removeEventListener('mousemove', move); window.removeEventListener('touchmove', move);
-        };
-        window.addEventListener('mousemove', move); window.addEventListener('touchmove', move, {passive:false});
-        window.addEventListener('mouseup', stop); window.addEventListener('touchend', stop);
-        
-        // Double click remove
-        let lastTap = 0;
-        el.addEventListener('touchend', (ev) => {
-            const now = new Date().getTime();
-            if(now - lastTap < 300) el.remove();
-            lastTap = now;
-        });
-        el.addEventListener('dblclick', () => el.remove());
-    };
+    let useW = state.exportParams.width;
+    let useH = Math.round(useW / aspect);
 
-    stickerLayer.appendChild(el);
-    setMode(null); // Back to neutral to allow drag
+    const m = document.getElementById('modal');
+    m.style.display='flex';
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-h">GIF Settings</div>
+        <div class="form-group">
+            <div class="form-label"><span>Px</span></div>
+            <div class="form-row-grid">
+                <input type="number" id="ex-w" class="form-input" value="${useW}" oninput="updateDims('w', ${aspect})">
+                <span style="color:#999;text-align:center">x</span>
+                <input type="number" id="ex-h" class="form-input" value="${useH}" oninput="updateDims('h', ${aspect})">
+                <button class="lock-btn locked" id="btn-lock" onclick="toggleLock()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/></svg></button>
+            </div>
+        </div>
+        <div class="form-group"><div class="form-label"><span>FPS: <span id="val-fps">${state.exportParams.fps}</span></span></div><input type="range" id="ex-fps" class="form-range" min="5" max="20" value="${state.exportParams.fps}" oninput="document.getElementById('val-fps').innerText=this.value"></div>
+        <div class="form-group"><div class="form-label"><span>Quality: <span id="val-q">${state.exportParams.quality}</span></span></div><input type="range" id="ex-q" class="form-range" min="1" max="20" value="${state.exportParams.quality}" oninput="document.getElementById('val-q').innerText=this.value"></div>
+        <button class="btn-main" onclick="runExport()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Export</button>
+        <button class="btn-main btn-sec" onclick="document.getElementById('modal').style.display='none'">Cancel</button>
+    `;
+    state.locked = true;
 }
 
-function addSticker(emoji) { createFloatEl(emoji, false); }
-function addText() {
-    const t = prompt("請輸入文字", "Hello");
-    if(t) {
-        createFloatEl(t, false);
-        // Style override for text
-        const last = stickerLayer.lastChild;
-        last.style.color = "white";
-        last.style.textShadow = "0 2px 4px black";
-        last.style.fontWeight = "bold";
-    }
-}
-function uploadSticker(e) {
-    const f = e.target.files[0];
-    if(f) {
-        const r = new FileReader();
-        r.onload = v => createFloatEl(v.target.result, true);
-        r.readAsDataURL(f);
-    }
+function toggleLock() {
+    state.locked = !state.locked;
+    const btn = document.getElementById('btn-lock');
+    btn.classList.toggle('locked');
+    btn.innerHTML = state.locked 
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 6.24 7 9v2h2V9c0-1.66 1.34-3 3-3z"/></svg>';
 }
 
-
-// --- 6. Timeline ---
-// (Simplified for V4 to save space, logic same as V3)
-const thS = document.getElementById('th-start');
-const thE = document.getElementById('th-end');
-const trkFill = document.getElementById('track-fill');
-const trkArea = document.getElementById('track-area');
-
-function initSlider(el, cb) {
-    const s = (cx) => {
-        const rect = trkArea.getBoundingClientRect();
-        const pct = Math.max(0,Math.min(100, (cx-rect.left)/rect.width*100));
-        cb(pct);
-    }
-    const h = (e) => { e.preventDefault(); s(e.touches?e.touches[0].clientX:e.clientX); 
-        const mv = (ev) => s(ev.touches?ev.touches[0].clientX:ev.clientX);
-        const up = () => { window.removeEventListener('mousemove',mv); window.removeEventListener('touchmove',mv); };
-        window.addEventListener('mousemove',mv); window.addEventListener('touchmove',mv,{passive:false});
-        window.addEventListener('mouseup',up); window.addEventListener('touchend',up);
-    }
-    el.addEventListener('mousedown', h); el.addEventListener('touchstart', h);
+window.updateDims = function(src, aspect) {
+    if(!state.locked) return;
+    const wIn = document.getElementById('ex-w');
+    const hIn = document.getElementById('ex-h');
+    if(src === 'w') hIn.value = Math.round(wIn.value / aspect);
+    else wIn.value = Math.round(hIn.value * aspect);
 }
-initSlider(thS, p => { if(p < parseFloat(thE.style.left)) { thS.style.left=p+'%'; state.start=p/100*state.dur; video.currentTime=state.start; updTrk();} });
-initSlider(thE, p => { if(p > parseFloat(thS.style.left)) { thE.style.left=p+'%'; state.end=p/100*state.dur; updTrk();} });
-function updTrk() { trkFill.style.left=thS.style.left; trkFill.style.width=(parseFloat(thE.style.left)-parseFloat(thS.style.left))+'%'; }
-function updateTimeline() { thS.style.left='0%'; thE.style.left='100%'; updTrk(); }
 
-// Playback
-document.getElementById('play-btn').onclick = () => {
-    state.play ? video.pause() : video.play();
-    state.play = !state.play;
-};
-video.ontimeupdate = () => {
-    if(video.currentTime >= state.end) video.currentTime = state.start;
-    document.getElementById('playhead').style.left = (video.currentTime/state.dur*100)+'%';
-    document.getElementById('time-display').innerText = `${fmt(video.currentTime)} / ${fmt(state.dur)}`;
-};
-function fmt(s){const m=Math.floor(s/60), ss=Math.floor(s%60); return `${m}:${ss.toString().padStart(2,'0')}`;}
-
-
-// --- 7. Export System (The Grand Finale) ---
-const modal = document.getElementById('modal-export');
-const uiSet = document.getElementById('ui-settings');
-const uiProc = document.getElementById('ui-process');
-const uiRes = document.getElementById('ui-result');
-const inpW = document.getElementById('inp-width');
-
-function openExport() { 
-    if(!state.file) return alert("請先載入影片");
-    video.pause(); state.play=false;
-    modal.classList.add('active');
-    showSettings();
-}
-function closeModal() { modal.classList.remove('active'); }
-function showSettings() {
-    uiSet.classList.remove('hidden'); uiProc.classList.add('hidden'); uiRes.classList.add('hidden');
-}
-function setExportW(v) { 
-    if(v===0) inpW.value = video.videoWidth; 
-    else inpW.value = v; 
-}
-function resetApp() { location.reload(); }
-
-async function startExport() {
-    uiSet.classList.add('hidden'); uiProc.classList.remove('hidden');
-    
-    const pBar = document.getElementById('p-bar');
-    const pTxt = document.getElementById('p-text');
-    
-    // Params
-    const fps = parseInt(document.getElementById('inp-q').value) > 10 ? 15 : 10;
-    const quality = 30 - parseInt(document.getElementById('inp-q').value); // Map 1-20 to 30-10
-    const targetW = parseInt(inpW.value) || 320;
-    
-    // Geometry Calc
-    const cL=parseFloat(cropOver.style.left)/100, cT=parseFloat(cropOver.style.top)/100;
-    const cW=parseFloat(cropOver.style.width)/100, cH=parseFloat(cropOver.style.height)/100;
-    const sx=Math.floor(cL*video.videoWidth), sy=Math.floor(cT*video.videoHeight);
-    const sw=Math.floor(cW*video.videoWidth), sh=Math.floor(cH*video.videoHeight);
-    const ratio = targetW / sw;
-    const dh = Math.floor(sh * ratio);
-    
-    // Init GIF
-    let wUrl = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js';
-    try{ const b=await fetch(wUrl).then(r=>r.blob()); wUrl=URL.createObjectURL(b); }catch(e){}
-    
-    const gif = new GIF({ workers:2, quality:quality, width:targetW, height:dh, workerScript:wUrl });
-    
-    // Render Loop
-    const cvs = document.createElement('canvas'); cvs.width = targetW; cvs.height = dh;
-    const ctx = cvs.getContext('2d', {willReadFrequently:true});
-    const step = 1/fps;
-    let t = state.start;
-    
-    const next = async () => {
-        if(t > state.end) {
-            pTxt.innerText = "編碼中 (這需要一點時間)...";
-            gif.render(); return;
+// Text Rendering Logic (Vertical Centering)
+function drawMultiLineText(ctx, text, x, y, maxWidth, lineHeight) {
+    const paragraphs = text.split('\n');
+    let lines = [];
+    paragraphs.forEach(p => {
+        let line = ''; const words = p.split('');
+        for(let n=0; n<words.length; n++) {
+            const testLine = line + words[n];
+            if(ctx.measureText(testLine).width > maxWidth && n > 0) { lines.push(line); line = words[n]; } else { line = testLine; }
         }
+        lines.push(line);
+    });
+    const totalHeight = lines.length * lineHeight;
+    let startY = y - (totalHeight / 2) + (lineHeight / 2);
+    ctx.textBaseline = 'middle';
+    lines.forEach((line, i) => { ctx.fillText(line, x, startY + (i * lineHeight)); });
+}
+
+async function runExport(){
+    const width = parseInt(document.getElementById('ex-w').value) || 320;
+    const height = parseInt(document.getElementById('ex-h').value) || 320;
+    const fps = parseInt(document.getElementById('ex-fps').value);
+    const qVal = parseInt(document.getElementById('ex-q').value);
+    
+    state.exportParams = { width, fps, quality: qVal };
+
+    const c=document.getElementById('modal-content'); c.innerHTML=`<h3>Encoding...</h3>`;
+    
+    const crop=cropOver;
+    const cL=parseFloat(crop.style.left)/100, cT=parseFloat(crop.style.top)/100;
+    const cW=parseFloat(crop.style.width)/100, cH=parseFloat(crop.style.height)/100;
+    
+    const sx=cL*video.videoWidth, sy=cT*video.videoHeight;
+    const sw=cW*video.videoWidth, sh=cH*video.videoHeight;
+
+    let wUrl='https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js';
+    try{const b=await fetch(wUrl).then(r=>r.blob());wUrl=URL.createObjectURL(b);}catch(e){}
+    
+    const gif=new GIF({workers:2, quality:30-qVal, width:width, height:height, workerScript:wUrl});
+    const canvas=document.createElement('canvas'); canvas.width=width; canvas.height=height;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    
+    const step=1/fps; 
+    let t = state.start || 0;
+    const endT = (state.end > 0) ? state.end : video.duration;
+
+    const render=async()=>{
+        if(t >= endT){ c.innerHTML=`<h3>Finishing...</h3>`; gif.render(); return; }
         
         video.currentTime = t;
-        await new Promise(r => { const h=()=>{video.removeEventListener('seeked',h);r()}; video.addEventListener('seeked',h); });
+        await new Promise(r=>{const f=()=>{video.removeEventListener('seeked',f);r()};video.addEventListener('seeked',f)});
         
-        // 1. Draw Video
-        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetW, dh);
-        
-        // 2. Draw Doodle (Scaled)
-        ctx.drawImage(cvsDraw, sx, sy, sw, sh, 0, 0, targetW, dh);
-        
-        // 3. Draw Stickers (Hardest part: DOM to Canvas)
-        const stickers = document.querySelectorAll('.sticker-item');
-        stickers.forEach(el => {
-            const rect = el.getBoundingClientRect();
-            const stageRect = stage.getBoundingClientRect();
-            
-            // Rel pos to Stage
-            const rx = rect.left - stageRect.left;
-            const ry = rect.top - stageRect.top;
-            
-            // Map to Video Source Resolution
-            const scaleV = video.videoWidth / stageRect.width;
-            const vx = rx * scaleV;
-            const vy = ry * scaleV;
-            const vw = rect.width * scaleV;
-            const vh = rect.height * scaleV;
-            
-            // Map to Crop -> Dest
-            // Canvas X = (VideoX - CropX) * DestRatio
-            const dx = (vx - sx) * ratio;
-            const dy = (vy - sy) * ratio;
-            const dw = vw * ratio;
-            const dh_el = vh * ratio;
-            
-            if(el.querySelector('img')) {
-                ctx.drawImage(el.querySelector('img'), dx, dy, dw, dh_el);
-            } else {
-                // Text
-                const fontSize = parseFloat(el.style.fontSize) * scaleV * ratio;
-                ctx.font = `bold ${fontSize}px sans-serif`;
-                ctx.fillStyle = "white";
-                ctx.strokeStyle = "black";
-                ctx.lineWidth = 2 * ratio;
-                ctx.fillText(el.innerText, dx, dy + fontSize); // baseline fix
-                ctx.strokeText(el.innerText, dx, dy + fontSize);
+        ctx.fillStyle='#000'; ctx.fillRect(0,0,width,height);
+        // Draw Video (Fit or Stretch based on user input W/H)
+        ctx.drawImage(video,sx,sy,sw,sh,0,0,width,height);
+        ctx.drawImage(document.getElementById('canvas-draw'),sx,sy,sw,sh,0,0,width,height);
+
+        const vScale = video.videoWidth / stage.getBoundingClientRect().width;
+        // Calculate ratio based on Output Width vs Crop Source Width
+        const ratioX = width / sw;
+        const ratioY = height / sh;
+
+        document.querySelectorAll('.widget').forEach(w=>{
+            const cx=w.offsetLeft+w.offsetWidth/2; const cy=w.offsetTop+w.offsetHeight/2;
+            const rot=parseFloat(w.dataset.rot)||0;
+            const ox = (cx * vScale - sx) * ratioX;
+            const oy = (cy * vScale - sy) * ratioY;
+            const ow = w.offsetWidth * vScale * ratioX;
+            const oh = w.offsetHeight * vScale * ratioY;
+
+            ctx.save(); ctx.translate(ox,oy); ctx.rotate(rot*Math.PI/180);
+
+            // Emoji Support (span tag)
+            if(w.querySelector('span')) {
+                const span = w.querySelector('span');
+                const fs = parseFloat(span.style.fontSize) * vScale * ratioX;
+                ctx.font = `${fs}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(span.innerText, 0, 0);
             }
+            else if(w.dataset.isBubble){
+                const svg=new XMLSerializer().serializeToString(w.querySelector('svg'));
+                const img=new Image(); img.src='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+                ctx.drawImage(img,-ow/2,-oh/2,ow,oh);
+                const txtDiv=w.querySelector('.bubble-text');
+                if(txtDiv){
+                    const rawFS = parseFloat(window.getComputedStyle(txtDiv).fontSize)*vScale*ratioX; 
+                    const fs = Math.max(10, rawFS); 
+                    ctx.font=`bold ${fs}px sans-serif`; ctx.fillStyle="black"; ctx.textAlign="center"; 
+                    
+                    // Fixed logic: pass '0' as y-center relative to translated context
+                    // Line height approximation 1.2
+                    drawMultiLineText(ctx, txtDiv.innerText, 0, 0, ow*0.85, fs*1.2);
+                }
+            } else if(w.querySelector('img')) {
+                ctx.drawImage(w.querySelector('img'),-ow/2,-oh/2,ow,oh);
+            } else if(w.querySelector('.bubble-text')) {
+                const txtDiv=w.querySelector('.bubble-text');
+                const rawFS = parseFloat(window.getComputedStyle(txtDiv).fontSize)*vScale*ratioX;
+                const fs = Math.max(10, rawFS);
+                ctx.font=`bold ${fs}px sans-serif`; ctx.fillStyle="white"; ctx.shadowColor="black"; ctx.shadowBlur=2;
+                ctx.textAlign="center"; ctx.textBaseline="middle";
+                ctx.fillText(txtDiv.innerText,0,0);
+            }
+            ctx.restore();
         });
 
-        gif.addFrame(ctx, {copy:true, delay:step*1000});
-        
-        // Progress
-        const prog = (t-state.start)/(state.end-state.start);
-        pBar.style.width = (prog*40) + '%'; // First 40% is capturing
-        t += step;
-        requestAnimationFrame(next);
+        gif.addFrame(ctx,{copy:true,delay:step*1000}); t += step; requestAnimationFrame(render);
     };
     
-    gif.on('progress', p => {
-        pBar.style.width = (40 + p*60) + '%';
-        pTxt.innerText = `製作 GIF 中... ${Math.round(p*100)}%`;
+    gif.on('finished',blob=>{
+        const url=URL.createObjectURL(blob);
+        c.innerHTML=`
+            <img src="${url}" style="max-width:100%;max-height:200px;margin:10px 0;border-radius:8px;border:1px solid #eee;">
+            <div class="btn-row">
+                <a href="${url}" download="gif_${Date.now()}.gif" class="res-icon-btn primary" title="Download">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                </a>
+                <div class="res-icon-btn" onclick="location.reload()" title="New Project">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                </div>
+                <div class="res-icon-btn" onclick="document.getElementById('modal').style.display='none'" title="Continue Editing">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </div>
+            </div>
+        `;
     });
-    
-    gif.on('finished', blob => {
-        const url = URL.createObjectURL(blob);
-        document.getElementById('res-img').src = url;
-        const dl = document.getElementById('btn-dl');
-        dl.onclick = () => {
-            const a = document.createElement('a'); a.href=url; a.download=`gif_v4_${Date.now()}.gif`; a.click();
-        };
-        
-        uiProc.classList.add('hidden');
-        uiRes.classList.remove('hidden');
-    });
-    
-    pTxt.innerText = "擷取畫面圖層...";
-    next();
+    render();
 }
-
 </script>
 </body>
 </html>
